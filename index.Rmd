@@ -10,6 +10,18 @@ output:
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
+load required libraries
+### load required libraries
+library(caret)
+library(randomForest)
+library(rattle)
+library(rpart)
+library(rpart.plot)
+
+## load local version of the data
+
+training = read.csv("pml-training.csv")
+testing = read.csv("pml-testing.csv")
 
 ## R Markdown
 
@@ -25,7 +37,7 @@ summary(cars)
 
 You can also embed plots, for example:
 
-```{r pressure, echo=FALSE}
+```{r pressure, echo=TRUE}
 plot(pressure)
 ```
 
