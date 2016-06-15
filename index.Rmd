@@ -10,24 +10,76 @@ output:
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
-load required libraries
-### load required libraries
+
+## Setting up
+
+We load the required libraries.
+```{r}
 library(caret)
 library(randomForest)
 library(rattle)
 library(rpart)
 library(rpart.plot)
-
-## load local version of the data
-
+library(corrplot)
+```
+Load local data.
+```{r}
 training = read.csv("pml-training.csv")
 testing = read.csv("pml-testing.csv")
+```
+Check the dimensions.
+```{r}
+dim(training)
+dim(testing)
+```
+Find out how many NA values using complete.cases()
+```{r}
+sum(complete.cases(training))
+```
+## Cleaning the data
 
-## R Markdown
+We will remove columsn with NA values, columns with data that is not needed for training,e.g., names and time stamps etc.
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+We remove columsn with NA values like this:
+```{r}
+train_cleaned <- training[, colSums(is.na(training)) == 0]
+```
+There are seven columns at the beginning with information we do not need
+```{r}
+sum(grepl("^X|user_name|timestamp|window",names(train_cleaned)))
+remove_train_col <- grepl("^X|user_name|timestamp|window",names(train_cleaned))
+train_cleaned <- train_cleaned[,!remove_train_col]
+ncol(train_cleaned)
+```
+We are left with 86 columns but some have no values, and so we remove those too. Our "classe" variable will be removed but we column bind it back and make sure it is still called "class". 
+```{r}
+trClean <- train_cleaned[, sapply(train_cleaned, is.numeric)]
+trained <- cbind(trClean,train_cleaned[,"classe"])
+names(trained)[53] <- "classe"
+colnames(trained)
+```
+We also check if any of the variables have near zero variance.
+```{r}
+mydata <- nearZeroVar(trained, saveMetrics = TRUE)
+mydata
+```
+Since all the variables return FALSE, we are left with 52 variables to build our model. Before this we apply the same cleaning procedures to the final testing dataset with 20 cases.
 
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+```{r}
+test_cleaned <- testing[, colSums(is.na(testing)) == 0]
+remove_test_col <- grepl("^X|user_name|timestamp|window",names(test_cleaned))
+test_cleaned <- test_cleaned[,!remove_test_col]
+testClean <- test_cleaned[, sapply(test_cleaned, is.numeric)]
+dim(testClean)
+dim(trClean)
+```
+We should also make sure the training and test datasets have same
+columns/names.
+```{r}
+names(test_cleaned) == names(trained)
+```
+Last column names is different, but that is OK. 
+
 
 ```{r cars}
 summary(cars)

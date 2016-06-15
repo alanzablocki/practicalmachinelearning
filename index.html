@@ -123,10 +123,148 @@ $(document).ready(function () {
 </div>
 
 
-<div id="r-markdown" class="section level2">
-<h2>R Markdown</h2>
-<p>This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <a href="http://rmarkdown.rstudio.com" class="uri">http://rmarkdown.rstudio.com</a>.</p>
-<p>When you click the <strong>Knit</strong> button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:</p>
+<div id="setting-up" class="section level2">
+<h2>Setting up</h2>
+<p>We load the required libraries.</p>
+<pre class="r"><code>library(caret)</code></pre>
+<pre><code>## Loading required package: lattice</code></pre>
+<pre><code>## Loading required package: ggplot2</code></pre>
+<pre class="r"><code>library(randomForest)</code></pre>
+<pre><code>## randomForest 4.6-12</code></pre>
+<pre><code>## Type rfNews() to see new features/changes/bug fixes.</code></pre>
+<pre><code>## 
+## Attaching package: 'randomForest'</code></pre>
+<pre><code>## The following object is masked from 'package:ggplot2':
+## 
+##     margin</code></pre>
+<pre class="r"><code>library(rattle)</code></pre>
+<pre><code>## Rattle: A free graphical interface for data mining with R.
+## Version 4.1.0 Copyright (c) 2006-2015 Togaware Pty Ltd.
+## Type 'rattle()' to shake, rattle, and roll your data.</code></pre>
+<pre class="r"><code>library(rpart)
+library(rpart.plot)
+library(corrplot)</code></pre>
+<p>Load local data.</p>
+<pre class="r"><code>training = read.csv(&quot;pml-training.csv&quot;)
+testing = read.csv(&quot;pml-testing.csv&quot;)</code></pre>
+<p>Check the dimensions.</p>
+<pre class="r"><code>dim(training)</code></pre>
+<pre><code>## [1] 19622   160</code></pre>
+<pre class="r"><code>dim(testing)</code></pre>
+<pre><code>## [1]  20 160</code></pre>
+<p>Find out how many NA values using complete.cases()</p>
+<pre class="r"><code>sum(complete.cases(training))</code></pre>
+<pre><code>## [1] 406</code></pre>
+</div>
+<div id="cleaning-the-data" class="section level2">
+<h2>Cleaning the data</h2>
+<p>We will remove columsn with NA values, columns with data that is not needed for training,e.g., names and time stamps etc.</p>
+<p>We remove columsn with NA values like this:</p>
+<pre class="r"><code>train_cleaned &lt;- training[, colSums(is.na(training)) == 0]</code></pre>
+<p>There are seven columns at the beginning with information we do not need</p>
+<pre class="r"><code>sum(grepl(&quot;^X|user_name|timestamp|window&quot;,names(train_cleaned)))</code></pre>
+<pre><code>## [1] 7</code></pre>
+<pre class="r"><code>remove_train_col &lt;- grepl(&quot;^X|user_name|timestamp|window&quot;,names(train_cleaned))
+train_cleaned &lt;- train_cleaned[,!remove_train_col]
+ncol(train_cleaned)</code></pre>
+<pre><code>## [1] 86</code></pre>
+<p>We are left with 86 columns but some have no values, and so we remove those too. Our “classe” variable will be removed but we column bind it back and make sure it is still called “class”.</p>
+<pre class="r"><code>trClean &lt;- train_cleaned[, sapply(train_cleaned, is.numeric)]
+trained &lt;- cbind(trClean,train_cleaned[,&quot;classe&quot;])
+names(trained)[53] &lt;- &quot;classe&quot;
+colnames(trained)</code></pre>
+<pre><code>##  [1] &quot;roll_belt&quot;            &quot;pitch_belt&quot;           &quot;yaw_belt&quot;            
+##  [4] &quot;total_accel_belt&quot;     &quot;gyros_belt_x&quot;         &quot;gyros_belt_y&quot;        
+##  [7] &quot;gyros_belt_z&quot;         &quot;accel_belt_x&quot;         &quot;accel_belt_y&quot;        
+## [10] &quot;accel_belt_z&quot;         &quot;magnet_belt_x&quot;        &quot;magnet_belt_y&quot;       
+## [13] &quot;magnet_belt_z&quot;        &quot;roll_arm&quot;             &quot;pitch_arm&quot;           
+## [16] &quot;yaw_arm&quot;              &quot;total_accel_arm&quot;      &quot;gyros_arm_x&quot;         
+## [19] &quot;gyros_arm_y&quot;          &quot;gyros_arm_z&quot;          &quot;accel_arm_x&quot;         
+## [22] &quot;accel_arm_y&quot;          &quot;accel_arm_z&quot;          &quot;magnet_arm_x&quot;        
+## [25] &quot;magnet_arm_y&quot;         &quot;magnet_arm_z&quot;         &quot;roll_dumbbell&quot;       
+## [28] &quot;pitch_dumbbell&quot;       &quot;yaw_dumbbell&quot;         &quot;total_accel_dumbbell&quot;
+## [31] &quot;gyros_dumbbell_x&quot;     &quot;gyros_dumbbell_y&quot;     &quot;gyros_dumbbell_z&quot;    
+## [34] &quot;accel_dumbbell_x&quot;     &quot;accel_dumbbell_y&quot;     &quot;accel_dumbbell_z&quot;    
+## [37] &quot;magnet_dumbbell_x&quot;    &quot;magnet_dumbbell_y&quot;    &quot;magnet_dumbbell_z&quot;   
+## [40] &quot;roll_forearm&quot;         &quot;pitch_forearm&quot;        &quot;yaw_forearm&quot;         
+## [43] &quot;total_accel_forearm&quot;  &quot;gyros_forearm_x&quot;      &quot;gyros_forearm_y&quot;     
+## [46] &quot;gyros_forearm_z&quot;      &quot;accel_forearm_x&quot;      &quot;accel_forearm_y&quot;     
+## [49] &quot;accel_forearm_z&quot;      &quot;magnet_forearm_x&quot;     &quot;magnet_forearm_y&quot;    
+## [52] &quot;magnet_forearm_z&quot;     &quot;classe&quot;</code></pre>
+<p>We also check if any of the variables have near zero variance.</p>
+<pre class="r"><code>mydata &lt;- nearZeroVar(trained, saveMetrics = TRUE)
+mydata</code></pre>
+<pre><code>##                      freqRatio percentUnique zeroVar   nzv
+## roll_belt             1.101904     6.7781062   FALSE FALSE
+## pitch_belt            1.036082     9.3772296   FALSE FALSE
+## yaw_belt              1.058480     9.9734991   FALSE FALSE
+## total_accel_belt      1.063160     0.1477933   FALSE FALSE
+## gyros_belt_x          1.058651     0.7134849   FALSE FALSE
+## gyros_belt_y          1.144000     0.3516461   FALSE FALSE
+## gyros_belt_z          1.066214     0.8612782   FALSE FALSE
+## accel_belt_x          1.055412     0.8357966   FALSE FALSE
+## accel_belt_y          1.113725     0.7287738   FALSE FALSE
+## accel_belt_z          1.078767     1.5237998   FALSE FALSE
+## magnet_belt_x         1.090141     1.6664968   FALSE FALSE
+## magnet_belt_y         1.099688     1.5187035   FALSE FALSE
+## magnet_belt_z         1.006369     2.3290184   FALSE FALSE
+## roll_arm             52.338462    13.5256345   FALSE FALSE
+## pitch_arm            87.256410    15.7323412   FALSE FALSE
+## yaw_arm              33.029126    14.6570176   FALSE FALSE
+## total_accel_arm       1.024526     0.3363572   FALSE FALSE
+## gyros_arm_x           1.015504     3.2769341   FALSE FALSE
+## gyros_arm_y           1.454369     1.9162165   FALSE FALSE
+## gyros_arm_z           1.110687     1.2638875   FALSE FALSE
+## accel_arm_x           1.017341     3.9598410   FALSE FALSE
+## accel_arm_y           1.140187     2.7367241   FALSE FALSE
+## accel_arm_z           1.128000     4.0362858   FALSE FALSE
+## magnet_arm_x          1.000000     6.8239731   FALSE FALSE
+## magnet_arm_y          1.056818     4.4439914   FALSE FALSE
+## magnet_arm_z          1.036364     6.4468454   FALSE FALSE
+## roll_dumbbell         1.022388    84.2065029   FALSE FALSE
+## pitch_dumbbell        2.277372    81.7449801   FALSE FALSE
+## yaw_dumbbell          1.132231    83.4828254   FALSE FALSE
+## total_accel_dumbbell  1.072634     0.2191418   FALSE FALSE
+## gyros_dumbbell_x      1.003268     1.2282132   FALSE FALSE
+## gyros_dumbbell_y      1.264957     1.4167771   FALSE FALSE
+## gyros_dumbbell_z      1.060100     1.0498420   FALSE FALSE
+## accel_dumbbell_x      1.018018     2.1659362   FALSE FALSE
+## accel_dumbbell_y      1.053061     2.3748853   FALSE FALSE
+## accel_dumbbell_z      1.133333     2.0894914   FALSE FALSE
+## magnet_dumbbell_x     1.098266     5.7486495   FALSE FALSE
+## magnet_dumbbell_y     1.197740     4.3012945   FALSE FALSE
+## magnet_dumbbell_z     1.020833     3.4451126   FALSE FALSE
+## roll_forearm         11.589286    11.0895933   FALSE FALSE
+## pitch_forearm        65.983051    14.8557741   FALSE FALSE
+## yaw_forearm          15.322835    10.1467740   FALSE FALSE
+## total_accel_forearm   1.128928     0.3567424   FALSE FALSE
+## gyros_forearm_x       1.059273     1.5187035   FALSE FALSE
+## gyros_forearm_y       1.036554     3.7763735   FALSE FALSE
+## gyros_forearm_z       1.122917     1.5645704   FALSE FALSE
+## accel_forearm_x       1.126437     4.0464784   FALSE FALSE
+## accel_forearm_y       1.059406     5.1116094   FALSE FALSE
+## accel_forearm_z       1.006250     2.9558659   FALSE FALSE
+## magnet_forearm_x      1.012346     7.7667924   FALSE FALSE
+## magnet_forearm_y      1.246914     9.5403119   FALSE FALSE
+## magnet_forearm_z      1.000000     8.5771073   FALSE FALSE
+## classe                1.469581     0.0254816   FALSE FALSE</code></pre>
+<p>Since all the variables return FALSE, we are left with 52 variables to build our model. Before this we apply the same cleaning procedures to the final testing dataset with 20 cases.</p>
+<pre class="r"><code>test_cleaned &lt;- testing[, colSums(is.na(testing)) == 0]
+remove_test_col &lt;- grepl(&quot;^X|user_name|timestamp|window&quot;,names(test_cleaned))
+test_cleaned &lt;- test_cleaned[,!remove_test_col]
+testClean &lt;- test_cleaned[, sapply(test_cleaned, is.numeric)]
+dim(testClean)</code></pre>
+<pre><code>## [1] 20 53</code></pre>
+<pre class="r"><code>dim(trClean)</code></pre>
+<pre><code>## [1] 19622    52</code></pre>
+<p>We should also make sure the training and test datasets have same columns/names.</p>
+<pre class="r"><code>names(test_cleaned) == names(trained)</code></pre>
+<pre><code>##  [1]  TRUE  TRUE  TRUE  TRUE  TRUE  TRUE  TRUE  TRUE  TRUE  TRUE  TRUE
+## [12]  TRUE  TRUE  TRUE  TRUE  TRUE  TRUE  TRUE  TRUE  TRUE  TRUE  TRUE
+## [23]  TRUE  TRUE  TRUE  TRUE  TRUE  TRUE  TRUE  TRUE  TRUE  TRUE  TRUE
+## [34]  TRUE  TRUE  TRUE  TRUE  TRUE  TRUE  TRUE  TRUE  TRUE  TRUE  TRUE
+## [45]  TRUE  TRUE  TRUE  TRUE  TRUE  TRUE  TRUE  TRUE FALSE</code></pre>
+<p>Last column names is different, but that is OK.</p>
 <pre class="r"><code>summary(cars)</code></pre>
 <pre><code>##      speed           dist       
 ##  Min.   : 4.0   Min.   :  2.00  
@@ -139,6 +277,7 @@ $(document).ready(function () {
 <div id="including-plots" class="section level2">
 <h2>Including Plots</h2>
 <p>You can also embed plots, for example:</p>
+<pre class="r"><code>plot(pressure)</code></pre>
 <p><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAqAAAAHgCAMAAABNUi8GAAAC/VBMVEUAAAABAQECAgIDAwMEBAQFBQUGBgYHBwcICAgJCQkKCgoLCwsMDAwNDQ0ODg4PDw8QEBARERESEhITExMUFBQVFRUWFhYXFxcYGBgZGRkaGhobGxscHBwdHR0eHh4fHx8gICAhISEiIiIjIyMkJCQlJSUmJiYnJycoKCgpKSkqKiorKyssLCwtLS0uLi4vLy8wMDAxMTEyMjIzMzM0NDQ1NTU2NjY3Nzc4ODg5OTk6Ojo7Ozs8PDw9PT0+Pj4/Pz9AQEBBQUFCQkJDQ0NERERFRUVGRkZHR0dISEhJSUlKSkpLS0tMTExNTU1OTk5PT09QUFBRUVFSUlJTU1NUVFRVVVVWVlZXV1dYWFhZWVlaWlpbW1tcXFxdXV1eXl5fX19gYGBhYWFiYmJjY2NkZGRlZWVmZmZnZ2doaGhpaWlqampra2tsbGxtbW1ubm5vb29wcHBxcXFycnJzc3N0dHR1dXV2dnZ3d3d4eHh5eXl6enp7e3t8fHx9fX1+fn5/f3+AgICBgYGCgoKDg4OEhISFhYWGhoaHh4eIiIiJiYmKioqLi4uMjIyNjY2Ojo6Pj4+QkJCRkZGSkpKTk5OUlJSVlZWWlpaXl5eYmJiZmZmampqbm5ucnJydnZ2enp6fn5+goKChoaGioqKjo6OkpKSlpaWmpqanp6eoqKipqamqqqqrq6usrKytra2urq6vr6+wsLCxsbGysrKzs7O0tLS1tbW2tra3t7e4uLi5ubm6urq7u7u8vLy9vb2+vr6/v7/AwMDBwcHCwsLExMTFxcXGxsbHx8fIyMjJycnKysrLy8vMzMzNzc3Ozs7Pz8/Q0NDR0dHS0tLT09PU1NTV1dXW1tbX19fY2NjZ2dna2trb29vc3Nzd3d3e3t7f39/g4ODh4eHi4uLj4+Pk5OTl5eXm5ubn5+fo6Ojp6enq6urr6+vs7Ozt7e3u7u7v7+/w8PDx8fHy8vLz8/P09PT19fX29vb39/f4+Pj5+fn6+vr7+/v8/Pz9/f3+/v7///+QwBtzAAAACXBIWXMAAA7DAAAOwwHHb6hkAAAZTElEQVR4nO3dCXwU5d3A8QE0QMAEFMKhNggBvACVIyhYCGhBQQ6p9tVQVBAUkCqgRF9fsXiCiILaQg0qIBgBxYOISgWNggWBQqmAYKHigUIAuY8kO593dzbZQHhmmdmZ2f0n+/t++tlZM7PPPk1+bLJPNjuaDgimxXoCQDgECtEIFKIRKEQjUIhGoBCNQCEagUI0AoVoBArRCBSiEShEI1CIRqAQjUAhGoFCNAKFaAQK0QgUohEoRCNQiEagEI1AIRqBQjQChWgECtEIFKIRKEQjUIhGoBCNQCEagUI0AoVoBArRCBSiEShEI1CIRqAQjUAhGoFCNAKFaAQK0QgUohEoRCNQiEagEI1AIRqBQjQChWgECtEIFKIRKEQjUIhGoBCNQCEagUI0AoVoBArRCBSiEShEI1CIRqAQjUAhGoFCNAKFaAQK0QgUohEoRCNQiEagEI1AIRqBQjQChWgECtEIFKIRKEQjUIjmcqAjWwMWpO/wKlDfvt0+873tX1sFnF7TdZ4EuiUrraqmJTQe861ZoF/aGg/xqqUnga5Majhk8qyZU4alJq9WH0GgsMSbQDt3OhC8crR3F/URBApLvAk0aXrJtYXJ6iMIFJZ4E2jbzJLnRyPbqY8gUFjiTaDzKnXNXrZh4/JXe1aerz6CQFHWgR8VH/QmUD03QzNk5JocQKA42brfJjWsN+2UlUmPAtX1/HWLF6/NN91NoDjJunqv+/Rvrnyw7Mc9C/R0C/UEihPd8mLgcletvWU+7lGgLNTDnrTNxqbTp2U+zkI9RGi2wdh0yCvz8egu1H8/vkTKB3bGQ4V352OBy//W2l/m49FdqN+cVSJhip3xUOFtq//ML0cWXzKp7MdjtVBfM9vOeKj4tv2xXrX275zy4Vgt1BMoLInVQj2BwpJYLdQTKCzxbqHeb++GY2a7CBSWeBToe727z9bHJ2gJjxaqDyBQWOJNoG9qbXueOazaE4uyqkxTH0GgsMSbQFv19+k52tP+a/e0VB9BoLDEm0Crz/b/AKp95r+Wk6g+gkBhiTeBNs3S9Twt0OBjzdRHECgs8SbQCVXueiSlXYPFu95Kekh9BIHCEm8CLRjbsM7Ighs1TetxUH0EgcISz9ZBff7/fTZzldlrlgkUlni6UB8GgcISAoVoBArRCBSiEShEI1CIRqAQjUAhGoFCNAKFaAQK0QgUohEoRCNQiEagEI1AIRqBQjQChWgECtEIFKIRKEQjUIhGoBCNQCEagUI0AoVoBArRCBSiEShEI1CIRqAQjUAhGoFCNAKFaAQK0QgUohEoRCNQiEagEI1AIRqBQjQChWjeBerbt9vsPIg6gcIijwLdkpVWVdMSGo/51uQAAoUl3gS6MqnhkMmzZk4Zlpq8Wn0EgcISbwLt3OlA8MrR3l3URxAoLPEm0KTpJdcWJquPIFBY4k2gbTNLnh+NbKc+gkBhiTeBzqvUNXvZho3LX+1Zeb76CAKFJR49i8/N0AwZuSYHECgs8WwdNH/d4sVr8013EygsYaEeorFQD9FYqIdoLNRDtOgu1K9o27pYlWftjIe4Fd2F+kOrSiS+bGc8xC0W6iEaC/UQjYV6iObln3wUbP7JdKmeQGGJN4EWPt1PLxhbXdPOm21yBIHCEm8CHafdrz96xsj3387U3lYfQaCwxJtAzx+m6w0eDVy7vY36CAKFJd4EWvsVvTBhUeDa6zXVRxAoLPEm0J49CvWrxwSu/ZFX1MMJbwJdf85v58xJHPX3hbdoJs+SCDQe7Xj4liEmv7kx49Ey06bBZxkL9S3nmBxAoHFoacrw2S+06ltg5zaerYMe/faL3BXbWQdFyLHzl/ovC7tMtXMj3psJ0ZKXbmw+MnkFphqBIlrevtHYrL/Uzo0IFNGyppnxE19Obzs3IlBEi6/9M/5CtzdfZOdGBIqo+b5D25ED6r1k6zYEiujxLXl+1vf2bkKgEI1AIRqBQjQChWgECtEIFKIRKEQjUIhGoBCNQCEagUI0AoVoBArRCBSiEShEI1CIRqAQjUAhWkSBHt92JMxJ5CwhUFgSQaAzm1TWNg540lmiBApL7Ac6W/vjwjM3zq46xdH9EigssR/oJbfretWN+gMXObpfAoUl9gOtPtcIdG51R/dLoLDEfqCXjTACfaSlo/slUFhiP9Bs7YH1CZ9NT+RnUESB/UB9zyZrmpY4lmfxiAL7gW7Zvf8f85ftdXi/BApL7Ada6x437pdAYYn9QMdecNCF+yVQWGI/0De6po4aP9HP0f0SKCyxH2hqCUf3S6CwhFczQTQChWj2A+1WwtH9EigssR/oIL+B1ye1eNzR/RIoLIn0W/ye9Fcc3S+BwpKIfwZd0MrR/RIoLIk40NdrnOYGvn27w/y6nkBhif1AXzNMqBv2jItbstKqalpC4zHfmhxAoLDEfqA1DEmdt4Q5eGVSwyGTZ82cMiw1ebX6CAKFJd6sg3budCB45WhvkwdaAoUlkQTq/9Fy8we7wh2cNL3k2sJk9REECkvsB7r92oH6x1W02qvCHNw2s+T50ch26iMIFJbYD7TPue/qnTL+06l7mIPnVeqavWzDxuWv9qw8X30EgcIS+4HWfk7fX3mBPu2ccEfnZmiGjFyTAwgUltgPNPlv+jtV9ujZp1kHzV+3ePHafNPdBApL7Ad6bfqytl303RmtT3MDFurhAvuBrq2nJX6hN0lYGO5oFurhjgiWmQ59tVPX3wq3Ts9CPdzizTqo2UK9b08JAoUl3qyDmi3UL61dotIEe/NEnPJmHZSFerjEm3VQFurhEo/WQVmohzs8WwdloT5OFW7K2+nicB6tgwYdf8f0uT6BVlBLLrqwU53+Ydd4bPFmHbTYXu1Ts10EWjFtqPu+rh+8q6trA3pzGprMoJu0azIz1UcQaMV091OBy8KmX7k1oDenoemi1ezgl65d2qGD+ggCrZiuzjM2t89wa0BvTkNT9NeaA3bzLT4OdQsu2/Sd69aAXp2GZmtG/fcINP5M6hv4zvpdHdeeyHt2Gpqiv9To/y2BxpvDV9yQt2nGeZNcG9DD09BszahNoHHn6MROzW/Mc288L09DU/TKaLOXgxIorOE0NBCN09BANE5DA9E4DQ1E4zQ0EI3T0EA0zvIB0SIJdM8Xb+aZvxTZGgKFJfYDLXqwuqZp1cYUObpfAoUl9gN9XBv1rz3/vl970tH9EigssR9o0+HGZlgzR/dLoLDEfqDnzDY2s2s7ul8ChSX2A735ZuO38P37OrpfAoUl9gP9Oq17zudv9auZ+5VfxPdLoLDEfqDaiSK+XwKFJfYD3XaiiO+XQGEJv0mCaAQK0QgUohEoRCNQiEagEI1AIRqBQjQChWgECtEIFKIRKEQjUIhGoBCNQCEagUI0AoVoBArRCBSiESjs+yF36b4o3RWBwq6jf6rfo0sD184lFx6Bwq67b/Y/fG5q/m5U7oxAYdPepP2BzQcmZ2F1GYHCppVtjM3us6NybwQKmzakGZstv4nKvREobCpq9ElgM+quqNwbgcKuJSmPff7xgKaundA4LO8C9e3bHeZsiQRajn17x5WdHz4QnfvyKNAtWWlVNS2h8Rizs8kSKCzxJtCVSQ2HTJ41c8qw1OTV6iMIFJZ4E2jnTsXfAI727qI+gkBhiTeBJk0vubYwWX0EgcISbwJtm1ny/GhkO/URBApLvAl0XqWu2cs2bFz+as/K89VHECgs8ehZfG5G8D3sM3JNDiBQWOLZOmj+usWL15qf0ZNAYQkL9RCNhXqIxkI9RIvuQn1+9t+KVZtqZzzEregu1K8bUuLM5+yMh7jFQj1EY6EeorFQD9FYqIdoXgVasPWQsT24Q72fQGGJN4EWjquuJdx33H9tosntCBSWeBPolEp/mn9flUydQOGQN4FePNx/8Zq2gEDhkDeBVs8JXPZrfIRA4Yw3gTa/L3D5fa2BPgKFI94E+mylIe8e1vW52qChBFouHZnQuu5VM4tiPQ2vAi14upa20b+dl6IRaHlU0OHmr3YuaTMw1vPwbh3U98ORwObYJy+r9xOoaLMyAi+mONTI5MWSUcR7M0Hh9uCXZ9TEGM+DQKGUOdvYPPxEjOdBoFCaOMjYXPlhjOdBoFDafd5zhfrBEe0KYz0RAoXSth7ntEq6c0+sp0GgMLNnbZTeATQ8AoVoBArRCBSiEShEI1CIRqAQjUAhGoFCNAKFaAQK0QgUohEoRCPQ+HUse9DgGQWxnsVpEGjc2t6s3yvZPS/9JdbzCI9A41afpwKXDw6I8TROg0Dj1aGahwObPTUF/PF7GAQar35qENyetT+28zgNAo1XBbV2BTbf1Yv1RMIj0Lg17JYjun6w10Oxnkd4BBq3Dg9oMuzu1LuPxXoe4RFoHFvz12nrYz2H0yFQiEagEI1AIRqBQjQCrej2xnoCzhBohbZvROJZ1QbvjvU0HCDQiqyw48Af9V/uuVz4Wmc4BFqRLehgnBa9+4xYTyRyBFqRPRR8h+QXh8d4Hg4QaEX28DhjM/meGM/DAQKtyHLbGd/ir8mJ9UQiR6AVma/bH37Qf76jY+zfyTtiBFqhHR5b96yzHzgY62k4QKDl3w/z53xjvlf2C+ZPi0DLu6Ix9W+69Te3ludHyXAItLx7/uo9un50wJBYz8MjBFreNVsVuNybXEEfQgm0vDsj+BT9oo0xnodHCLR82PHZZpO/X0/5MXBZVGdnNKcTPQRaHuT3T+mc1maNct+dowKXr3SM6oSih0DLgaL00Ud0fW7Kf1U7d17ea947g1O/jvakooRAxTiw8rPv1Xs+vcL4jeWDY5R7C6be3OdJEact9AKBSjG3fsuOtQYfUu16YYSx+eD6qE5IBgKNph0P3zJkvnrXJ+ev1vVfMzNV+7JvMzY5v/dsYnJ5F6hv326f+V5FoMe3rPvV9Phda74zfRe2o5vWmy8C7lj9o+m+gyu+Omy2r2DVAtM3NfAteu6v/zSbzLOdLrzxc/W+pSnDZ7/Qqq/yPWOveyNwebjOD4p9W1MCb6Pk+90rZhOqwDwKdEtWWlVNS2g85luTA04N9MMLzr+kxhj1Hyfk96/Zqm4bkybm1G/cPHm8+h/D9h71W5/bVT0J35SU9Lb1nlMPurLF5X2bdd2m3PdLx5Yj7qw/QvkP5nDrP+RtmnneJNW+Y+cv9V8Wdpmq2nnBVmNzzd9VO8dePPebJb06HlfPtULzJtCVSQ2HTJ41c8qw1OTV6iNOCXRZgyX+h7sb7lIdXHT1iAO67/V6yucQbzdZpev/6fCEat/hi54p1ItearxPtfOZdH8Tm1oqc9me8q7/bp9PO6LaecND/n8NBzr+RbVvUr/A5XfnqN63OC/d2HzURXXDFsFPVOt/qHbqH/dqnvFCPPbpUaCdOxU/qzzaW/nVUATa69XA5f6zf1Yc/Gkr4/HxgQdVI11uPOZ8X0v12Pt6T2Nzq6qlonqbA5vVF6gGHTfS2Fw7T7FvRx3je/SXl6tu2C3X2PRV3fDtG43N+ktVN7zfeCK0pkFcVhiGN4EmTS+5tjD5xI+vu6nEGc+XuUnj4Pfhrp8ohnsh+CcLuT1U95UQLLOZ6hVnWeONzdS7Fft+Ln5jzBqqn19vMX4i1B95TLFvRTtjs7eWaja/zTM2t6n+TG1NM+PfWU5v1Q33Xnrbl1+/VP991b545k2gbTNLfiQc2e7Ej+fPK9GobIiXrDU27ZYphsu+3di8qXwWmxT8q+8G2xX7Hv0/Y/PMSMW+X88yfol9pJrqMWtw8DF3eNl/RgHbGhj/59ZdqJrNMOON3wubqX7r42v/jP+W25svUt1QP/zYlRffukG5K555E+i8Sl2zl23YuPzVnpVNVlXaf1nmA/dkBS43phxVHLy5gfH0vtc01Uh9XgpcftpctS+vWeBZ+rGWuaqdVxp/qTOtu2rfe5cHst3VYLNqZ7vAs+mi/3lUtW9Div8x8OBdXVX79O87tB05oN5Lyn1Q8+hZfG6GZshQpqErAt3Z5L5NP8057w3l0Y+0+Gjnmt+rn8VuaTjuP9un1ftUecM70j/4eXkX9frhipSn1q55sI5yMcl3U/u5/5je9M/KG25unDljarseqn9Kur68xYWd6vTfpdyn+5Y8P8vkt0VQ82wdNH/d4sVr8013nxKovnfkhQ2uW2Fy+HtXp1z2lMn7Y+y4s8n5N5q82Mw3I71um6kmK6jf3X3ZFSNMVkl9829K72+ynKkffuG2oQtM9umFmz4TfuqhciVWv0k6NVBAgUAhGoFCNAKFaAQK0QgUosUs0GHjTzHmquvc8Lt2rgzTvY0rw1zn0jBtu7kyTPq1rgxzVRdXhrl6yKkVlFE/RoHOyDrV9bXbu6FFoivDtD7DlWHaV27nyjDVLnNlmKSLXRmmbhNXhjn3ckUGJ3tQ+Uo07wNVef8GV4b552WuDLOrjivD6NVNXxNtS1Plb11ty1jqyjADZroyzP8+6cowBgKNEIGaI1AHCDQMAnWAQMMgUAcINAwCPQ0CjRCBmiNQBwg0DAJ1gEDDIFAHFvV1ZZj1bVwZZm99V4bRk9WvvLfroq2uDHOt2Yuw7Rk4x5Vhxk5wZRhDFAItdOnEvOav42eYcO/2YsM+d/46+pA7310MUQgUiByBQjQChWgECtEIFKIRKEQjUIhGoBCNQCEagUI0AoVo5SDQI9sCTN75MDZkTalCz8b7QOenJ3f5yskAbxtvSTrI4VD3jz55NhGOFRzG2ZQKJ12UeOmLhU5nExrG2Wz239so8bKckybhaBh3vlwhngeaW/nW7KuTtzgYYWLDd/zWOBtqy9mjT5pNhGMVD+NsSk9X+tMbQyuNczqb0DDOZpOZPCGnn7bI6WxCw7jy5SrleaAZXXz6/gZZDkYYWvLG25EPldfxDG30SUNENFZoGEdT8tUe7L8cUb3A2WxKh3E0m73aVP+DcVqmw89N6TAufLlO5HWg+drL/sshaQ6G6DZYL3A41PqJE42HvtAQkY1VMoyzKf2gveu/nK9tdTab0DDOZvNNp8C7WHfp5/BzExrGjS/XibwOdJ0WOL/H5KoOXlDbtFOzShdMLHQ4VJPRJ84m4rGMYZxN6cjGwOt570s45Gw2oWEcf4IKduZUy3H+uQkO49KXK8TrQBdrgVOwzNKsvhXPqQrPPPvF3KHaYw6HMsoKDRHxWMYwLkzptSr3ujAbYxjHs3la04b7nM8mOIxLX64Q7wMNPPTP1CL/04ajOYFzgQ1MLHQ2VHGgxUNEPJYxjOMp/fB77dZjzmcTHMbxbH7Ke6pqlvPZBIdx6csV4nWga7Xl/sspCU7/ZmaBttnZUEZZoSEiHiv4Ld7hlObVarzAhdkUD+N0NgFZCcedf26MYdyYzYm8f5L0mv9yeOPIR9j+YeB0M+9qPzsbqsnoE2cT8VjGMA6nNF8baJzN1uFsSoZxNpucSwILstnaAWezCQ3j0pcrxPNlps49/d8SGz0Q+QBrtYX+y0GpPmdDBR/6QkNEOlbxA7GTKR1LGVT8qOJoNqFhnM1mmbbUf5nZyOFsQsO49OUK8X6hvtKo3D7JZueXt8DX/eyJb9yhveVwqGCgoSEiHcsYxtmUlmhDJwYcdDab0DDOZlN0Zf3ncwYGHu0czSY0jEtfrhDvf9U5t01SxionA+wd2rDGlYucDlX8w2NoiAjHCg7jaEovB08nqe1wNpvSYZx9gn6+7dwabeb6dIefm9Aw7ny5QsrBi0UQzwgUohEoRCNQiEagEI1AIRqBQjQChWgECtEIFKIRKEQjUIhGoBCNQCEagUI0AoVoBArRCBSiEShEI1CIRqAQjUAhGoFCNAKFaAQK0QgUohFoxN7Oif4t4w+BRiyzd/RvGX8INGIEGg0EGql0TdP2+qZfkdhijv+/mrx2X8PGU3/uVSt1rr5N+/rmc5o/WaTrod2pbzxae8u+uxsmXPDnouAtawTe3nVQt+JdoQNRBoFGanuvrlsKJ2n3vDlAm+UP9Px7P75R+83jH7WvcXSblnbT68O0h3Q9tDv1mkbDdg+qPXbOUG1O8JalgQZ2hQ5EGQQaMf836gPJgTcQ7t/EH6g/tR3avbq+VNu8Tevu0/VRiXtKd6emHtT1Ptn+/2rxQPBbfGmg/l2lB6IMAo2YP7MV2nr/lYWVj+tNxul6gTZX19drG7dpb/g/+i/ti9LdqaOCt/lpTtXRZQP17yo9EGUQaMT8mb2lJVStWvVMbZve5OlAoO8UB/q5f/ce7c3S3anj/R9Zd339uj3qnRjowECg/l2lB6IMAo2YP7MvtM82BhwpE+hb/t3/1vJKd6dO1PV9iQPX+vS2JwZ6fSBQ/67SA1EGgUbMn9me6tP9V2YP8JUJtJ//o/dXzS/dHahwsbZd13fVKA40aYL/QTapONDSA1EGgUZsQLMlxx9JHDsvq9oTeplAaw6YPVwbo+uh3YEKt1bpNWtKs1qt1xq37Jwy5532LYoDLT0QZRBoxD5sUvNX3+RLq1842Vc20Nw+tdMeL9T10G6jwjlpNa5a9HGDicYtN2fUaDn98ZJAQweiDAJ13zbtq1hPoeIgUPcRqIsI1H0E6iICdR+BuohAIRqBQjQChWgECtEIFKIRKEQjUIhGoBCNQCEagUI0AoVoBArRCBSiEShEI1CIRqAQjUAhGoFCNAKFaAQK0QgUov0/pW95Bn0SqRsAAAAASUVORK5CYII=" alt /><!-- --></p>
 <p>Note that the <code>echo = FALSE</code> parameter was added to the code chunk to prevent printing of the R code that generated the plot.</p>
 </div>
