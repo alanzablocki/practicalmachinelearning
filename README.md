@@ -1,10 +1,10 @@
 # practicalmachinelearning
+
 repository for final project report on machine learning 
 
-trying to make it work...
+My compiled index.html can be found here:
 
-note that my index.html is not viewable from here go to 
-you can view index.md or go to the html site
 https://alanzablocki.github.io/practicalmachinelearning/index.html
 
+Otherwise you can view index.md, which has links to the figures also.
 
