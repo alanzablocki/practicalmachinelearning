@@ -80,17 +80,64 @@ names(test_cleaned) == names(trained)
 ```
 Last column names is different, but that is OK. 
 
+## Building predictions
+We split data intro training and testing samples, and set a unique seed
+so we can reproduce the results. We will use 65 35 split for training and testing.
 
-```{r cars}
-summary(cars)
+```{r}
+set.seed(83912)
+inTrain <- createDataPartition(y=trained$clas,p=0.65, list=FALSE)
+my_training <- trained[inTrain,]
+my_testing <- trained[-inTrain,]
 ```
 
-## Including Plots
-
-You can also embed plots, for example:
-
-```{r pressure, echo=TRUE}
-plot(pressure)
+### Predicting with decision trees
+```{r}
+model_Dtree <- rpart(classe ~.,data = my_training, method = "class")
+prediction_Dtree <- predict(model_Dtree, my_testing, type = "class")
+confusionMatrix(prediction_Dtree, my_testing$classe)
+model_Dtree
+```
+### Predicting with random forests
+```{r}
+model_RF1 <- randomForest(classe ~., data = my_training)
+prediction_RF1 <- predict(model_RF1, my_testing, type = "class")
+confusionMatrix(prediction_RF1, my_testing$classe)
+model_RF1
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+### Adding cross validation
+```{r}
+control <- trainControl(method = "cv",5)
+model_RF2 <- train(classe ~., data = my_training, method = "rf",trControl=control, ntree=50)
+prediction_RF2 <- predict(model_RF2, my_testing)
+confusionMatrix(prediction_RF2, my_testing$classe)
+model_RF2
+```
+We can work out the accuracy and out of sample error.
+```{r}
+accuracy <- postResample(prediction_RF2, my_testing$classe)
+accuracy
+OutSampleErr <- 1- as.numeric(confusionMatrix(prediction_RF2, my_testing$classe)$overall[1])
+OutSampleErr
+```
+Running this on the test set for the quiz
+```{r}
+fin_results <- predict(model_RF2,test_cleaned[,-length(names(test_cleaned))])
+fin_results
+```
+# Plots
+```{r}
+plot(model_RF1)
+```
+## Decision Tree
+```{r}
+prp(model_Dtree)
+fancyRpartPlot(model_Dtree)
+```
+## Correlation matrix
+
+```{r}
+corrPlot <- cor(my_training[, -length(names(my_training))])
+corrplot(corrPlot, method="color")
+```
