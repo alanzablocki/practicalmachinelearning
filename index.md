@@ -360,6 +360,7 @@ model_Dtree
 ##            23) total_accel_dumbbell< 5.5 451  108 D (0 0.16 0.0022 0.76 0.075) *
 ##       3) roll_belt>=129.5 1115   42 E (0.038 0 0 0 0.96) *
 ```
+I find that decision trees are not good enough to get the sort of accuracy we are after. Therefore I will try random forests now.
 ### Predicting with random forests
 
 ```r
@@ -423,12 +424,12 @@ model_RF1
 ## D    0    0   20 2069    2 0.010521282
 ## E    0    0    3    7 2335 0.004264392
 ```
-
+When running RF with 500 trees we get a very good accuracy of about 99.4 percent. I find that this does not vary much if we reduce the number of trees to 100 (Acc = 0.9932). Adding k-fold cross-validation does not improve the result. Pre-processing (centering and scaling) also does not change the result.
 ### Adding cross validation
 
 ```r
 control <- trainControl(method = "cv",5)
-model_RF2 <- train(classe ~., data = my_training, method = "rf",trControl=control, ntree=50)
+model_RF2 <- train(classe ~., data = my_training, method = "rf",trControl=control, ntree=100)
 prediction_RF2 <- predict(model_RF2, my_testing)
 confusionMatrix(prediction_RF2, my_testing$classe)
 ```
@@ -438,33 +439,33 @@ confusionMatrix(prediction_RF2, my_testing$classe)
 ## 
 ##           Reference
 ## Prediction    A    B    C    D    E
-##          A 1949    7    0    0    0
-##          B    4 1314   13    1    2
-##          C    0    7 1177   14    5
-##          D    0    0    7 1110    1
-##          E    0    0    0    0 1254
+##          A 1949    6    0    0    0
+##          B    4 1315   10    1    2
+##          C    0    7 1181   13    5
+##          D    0    0    6 1111    0
+##          E    0    0    0    0 1255
 ## 
 ## Overall Statistics
 ##                                           
-##                Accuracy : 0.9911          
-##                  95% CI : (0.9886, 0.9932)
+##                Accuracy : 0.9921          
+##                  95% CI : (0.9897, 0.9941)
 ##     No Information Rate : 0.2845          
 ##     P-Value [Acc > NIR] : < 2.2e-16       
 ##                                           
-##                   Kappa : 0.9888          
+##                   Kappa : 0.99            
 ##  Mcnemar's Test P-Value : NA              
 ## 
 ## Statistics by Class:
 ## 
 ##                      Class: A Class: B Class: C Class: D Class: E
-## Sensitivity            0.9980   0.9895   0.9833   0.9867   0.9937
-## Specificity            0.9986   0.9964   0.9954   0.9986   1.0000
-## Pos Pred Value         0.9964   0.9850   0.9784   0.9928   1.0000
-## Neg Pred Value         0.9992   0.9975   0.9965   0.9974   0.9986
+## Sensitivity            0.9980   0.9902   0.9866   0.9876   0.9945
+## Specificity            0.9988   0.9969   0.9956   0.9990   1.0000
+## Pos Pred Value         0.9969   0.9872   0.9793   0.9946   1.0000
+## Neg Pred Value         0.9992   0.9977   0.9972   0.9976   0.9988
 ## Prevalence             0.2845   0.1934   0.1744   0.1639   0.1838
-## Detection Rate         0.2839   0.1914   0.1714   0.1617   0.1827
-## Detection Prevalence   0.2849   0.1943   0.1752   0.1629   0.1827
-## Balanced Accuracy      0.9983   0.9929   0.9894   0.9926   0.9968
+## Detection Rate         0.2839   0.1916   0.1720   0.1618   0.1828
+## Detection Prevalence   0.2848   0.1940   0.1757   0.1627   0.1828
+## Balanced Accuracy      0.9984   0.9936   0.9911   0.9933   0.9972
 ```
 
 ```r
@@ -484,42 +485,43 @@ model_RF2
 ## Resampling results across tuning parameters:
 ## 
 ##   mtry  Accuracy   Kappa    
-##    2    0.9876150  0.9843302
-##   27    0.9905150  0.9880003
-##   52    0.9814221  0.9764995
+##    2    0.9891044  0.9862154
+##   27    0.9909853  0.9885956
+##   52    0.9830681  0.9785807
 ## 
 ## Accuracy was used to select the optimal model using  the largest value.
 ## The final value used for the model was mtry = 27.
 ```
-We can work out the accuracy and out of sample error.
+I can work out the accuracy and out of sample error on the RF1 model, which I also apply to the final test set.
 
 ```r
-accuracy <- postResample(prediction_RF2, my_testing$classe)
+accuracy <- postResample(prediction_RF1, my_testing$classe)
 accuracy
 ```
 
 ```
 ##  Accuracy     Kappa 
-## 0.9911143 0.9887599
+## 0.9937363 0.9920766
 ```
 
 ```r
-OutSampleErr <- 1- as.numeric(confusionMatrix(prediction_RF2, my_testing$classe)$overall[1])
+OutSampleErr <- 1- as.numeric(confusionMatrix(prediction_RF1, my_testing$classe)$overall[1])
 OutSampleErr
 ```
 
 ```
-## [1] 0.008885652
+## [1] 0.006263656
 ```
 Running this on the test set for the quiz
 
 ```r
-fin_results <- predict(model_RF2,test_cleaned[,-length(names(test_cleaned))])
+fin_results <- predict(model_RF1,test_cleaned[,-length(names(test_cleaned))])
 fin_results
 ```
 
 ```
-##  [1] B A B A A E D B A A B C B A E E A B B B
+##  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20 
+##  B  A  B  A  A  E  D  B  A  A  B  C  B  A  E  E  A  B  B  B 
 ## Levels: A B C D E
 ```
 # Plots
@@ -529,25 +531,24 @@ plot(model_RF1)
 ```
 
 ![](index_files/figure-html/unnamed-chunk-17-1.png)<!-- -->
-## Decision Tree
-
-```r
-prp(model_Dtree)
-```
-
-![](index_files/figure-html/unnamed-chunk-18-1.png)<!-- -->
-
-```r
-fancyRpartPlot(model_Dtree)
-```
-
-![](index_files/figure-html/unnamed-chunk-18-2.png)<!-- -->
 ## Correlation matrix
-
 
 ```r
 corrPlot <- cor(my_training[, -length(names(my_training))])
 corrplot(corrPlot, method="color")
 ```
 
+![](index_files/figure-html/unnamed-chunk-18-1.png)<!-- -->
+## Decision Tree
+
+```r
+prp(model_Dtree)
+```
+
 ![](index_files/figure-html/unnamed-chunk-19-1.png)<!-- -->
+
+```r
+fancyRpartPlot(model_Dtree)
+```
+
+![](index_files/figure-html/unnamed-chunk-19-2.png)<!-- -->
